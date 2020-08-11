@@ -1,0 +1,79 @@
+version: "2"
+
+services:
+  mariadb:
+    image: wodby/mariadb:$MARIADB_TAG
+    container_name: "${PROJECT_NAME}_mariadb"
+    stop_grace_period: 30s
+    environment:
+      MYSQL_ROOT_PASSWORD: $DB_ROOT_PASSWORD
+      MYSQL_DATABASE: $DB_NAME
+      MYSQL_USER: $DB_USER
+      MYSQL_PASSWORD: $DB_PASSWORD
+
+  php:
+    image: wodby/drupal-php:$PHP_TAG
+    container_name: "${PROJECT_NAME}_php"
+    environment:
+      PHP_SENDMAIL_PATH: /usr/sbin/sendmail -t -i -S mailhog:1025
+      DB_HOST: $DB_HOST
+      DB_USER: $DB_USER
+      DB_PASSWORD: $DB_PASSWORD
+      DB_NAME: $DB_NAME
+      DB_DRIVER: $DB_DRIVER
+      PHP_FPM_USER: wodby
+      PHP_FPM_GROUP: wodby
+      COLUMNS: 80
+      PHP_XDEBUG: 1
+      PHP_XDEBUG_DEFAULT_ENABLE: 1
+      PHP_XDEBUG_REMOTE_CONNECT_BACK: 0
+      PHP_IDE_CONFIG: serverName=my-ide
+      PHP_XDEBUG_REMOTE_HOST: 172.17.0.1
+      PHP_XDEBUG_REMOTE_LOG: /tmp/php-xdebug.log
+    volumes:
+      - ./:/var/www/html
+      - ~/.ssh/id_rsa:/home/wodby/.ssh/id_rsa
+
+  nginx:
+    image: wodby/nginx:$NGINX_TAG
+    container_name: "${PROJECT_NAME}_nginx"
+    depends_on:
+      - php
+    environment:
+      NGINX_STATIC_OPEN_FILE_CACHE: "off"
+      NGINX_ERROR_LOG_LEVEL: debug
+      NGINX_BACKEND_HOST: php
+      NGINX_SERVER_ROOT: /var/www/html
+      NGINX_VHOST_PRESET: $NGINX_VHOST_PRESET
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - '80:80'
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: "${PROJECT_NAME}_mailhog"
+    ports:
+      - '8025:8025'
+
+  redis:
+    container_name: "${PROJECT_NAME}_redis"
+    image: wodby/redis:$REDIS_TAG
+
+  node:
+    image: nikolaik/python-nodejs:latest
+    container_name: "${PROJECT_NAME}_node"
+    working_dir: /var/www/html/themes/drupal7
+    ports:
+      - '3000:3000'
+    expose:
+      - "3000"
+    volumes:
+      - ./:/var/www/html
+    command: sh -c 'yarn install && yarn gulp serve'
+
+  elastic:
+    image: elasticsearch:1.7
+    container_name: "${PROJECT_NAME}_elastic"
+    ports:
+      - '9200:9200'
